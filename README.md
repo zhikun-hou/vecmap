@@ -12,7 +12,8 @@ VecMap (cross-lingual word embedding mappings)
   
 
 ## 理论基础
-- map_embedding.py中涉及到`svd`分解的部分，理论基础来自：**[Offline bilingual word vectors, orthogonal transformations and the inverted softmax](https://arxiv.org/abs/1702.03859)***而不是
+- map_embedding.py中涉及到`svd`分解的部分，理论基础来自：***[Offline bilingual word vectors, orthogonal transformations and the inverted softmax](https://arxiv.org/abs/1702.03859)***
+- 这篇文章提出了直接进行SVD分解，一次性得到结果，而不是像之前的工作一样先对W做随机梯度下降再做SVD分解
 
 ## 原始论文
 - Mikel Artetxe, Gorka Labaka, and Eneko Agirre. 2018. **[A robust self-learning method for fully unsupervised cross-lingual mappings of word embeddings](https://aclweb.org/anthology/P18-1073)**. In *Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)*.
