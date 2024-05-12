@@ -29,13 +29,13 @@ def dropout(m, p):
         return m
     else:
         xp = get_array_module(m)
-        mask = xp.random.rand(*m.shape) >= p
+        mask = xp.random.rand(*m.shape) >= p # 这里用的是>=，所以后面是1-keep_prob
         return m*mask
 
 
 def topk_mean(m, k, inplace=False):  # TODO Assuming that axis is 1
     xp = get_array_module(m)
-    n = m.shape[0]
+    n = m.shape[0] # N_batch
     ans = xp.zeros(n, dtype=m.dtype)
     if k <= 0:
         return ans
@@ -244,12 +244,12 @@ def main():
         log = open(args.log, mode='w', encoding=args.encoding, errors='surrogateescape')
 
     # Allocate memory
-    xw = xp.empty_like(x)
+    xw = xp.empty_like(x) # 在latent space中的X，不是模型参数W
     zw = xp.empty_like(z)
     src_size = x.shape[0] if args.vocabulary_cutoff <= 0 else min(x.shape[0], args.vocabulary_cutoff)
     trg_size = z.shape[0] if args.vocabulary_cutoff <= 0 else min(z.shape[0], args.vocabulary_cutoff)
-    simfwd = xp.empty((args.batch_size, trg_size), dtype=dtype)
-    simbwd = xp.empty((args.batch_size, src_size), dtype=dtype)
+    simfwd = xp.empty((args.batch_size, trg_size), dtype=dtype) # (N_batch_samples, N_words_in_target_language_dict)
+    simbwd = xp.empty((args.batch_size, src_size), dtype=dtype) # (N_batch_samples, N_words_in_source_language_dict)
     if args.validation is not None:
         simval = xp.empty((len(validation.keys()), z.shape[0]), dtype=dtype)
 
@@ -337,16 +337,26 @@ def main():
             # Update the training dictionary
             if args.direction in ('forward', 'union'):
                 if args.csls_neighborhood > 0:
-                    for i in range(0, trg_size, simbwd.shape[0]):
+                    for i in range(0, trg_size, simbwd.shape[0]): # (0,N_words,N_batch)  注意：range的参数为start,stop,step
+                        # i相当于每个batch开头第一个样本的索引
+                        # j相当于每个batch最后一个样本的索引
                         j = min(i + simbwd.shape[0], trg_size)
-                        zw[i:j].dot(xw[:src_size].T, out=simbwd[:j-i])
+                        # 每次取出一个batch，计算batch中的Z到所有X的内积，作为cosine similarity
+                        zw[i:j].dot(xw[:src_size].T, out=simbwd[:j-i]) # 得到一个(N_batch,N_srcwords)的矩阵
+                        # 最后拼到simbwd中，就变成了(N_trgwords,N_srcwords)矩阵，表示
+
+                        # 以上相当于3.3节的1.
+                        # 下面相当于3.3节的2.  
+                        # 这一行是为了构造CSLS中的反向
                         knn_sim_bwd[i:j] = topk_mean(simbwd[:j-i], k=args.csls_neighborhood, inplace=True)
                 for i in range(0, src_size, simfwd.shape[0]):
                     j = min(i + simfwd.shape[0], src_size)
+                    # 反过来又跑了一遍，计算batch中的X到所有Z的内积
                     xw[i:j].dot(zw[:trg_size].T, out=simfwd[:j-i])
+                    # 这里开始不一样了，构造CSLS中的正向
                     simfwd[:j-i].max(axis=1, out=best_sim_forward[i:j])
-                    simfwd[:j-i] -= knn_sim_bwd/2  # Equivalent to the real CSLS scores for NN
-                    dropout(simfwd[:j-i], 1 - keep_prob).argmax(axis=1, out=trg_indices_forward[i:j])
+                    simfwd[:j-i] -= knn_sim_bwd/2  # 构造CSLS
+                    dropout(simfwd[:j-i], 1 - keep_prob).argmax(axis=1, out=trg_indices_forward[i:j]) # 这里将dropout后的结果输出到了trg_indices_forward，在之后被赋给了trg_indices，用于下一轮循环
             if args.direction in ('backward', 'union'):
                 if args.csls_neighborhood > 0:
                     for i in range(0, src_size, simfwd.shape[0]):
