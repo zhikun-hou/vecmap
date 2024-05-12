@@ -264,7 +264,7 @@ def main():
 
     # Training loop
     best_objective = objective = -100.
-    it = 1
+    it = 1 # 当前epoch序号
     last_improvement = 0
     keep_prob = args.stochastic_initial
     t = time.time()
